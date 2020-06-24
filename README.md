@@ -114,3 +114,88 @@ $ docker container run --rm -it -p 8080:8080 nicktorwald/dice-roller-service:evo
 
 - learn and follow the best practices from the community;
 - use linters to check Dockerfile-s (i.e. `hadolint`).
+
+## Evolution \#2
+
+Next, it is time to become more secure and apply another good suggestion that is concluded in running under the least
+privileged user.
+
+```diff
+--- Dockerfile
++++ Dockerfile
+@@ -2,10 +2,18 @@
+ 
+ LABEL maintainer="nicktorwald"
+ 
+-WORKDIR /opt/dice-roller-service
++ENV APP_ROOT /opt/dice-roller-service
++
++RUN groupadd --gid 999 --system dice-roller \
++    && useradd --uid 999 --system --gid dice-roller dice-roller \
++    && mkdir --parents ${APP_ROOT} \
++    && chown --recursive dice-roller:dice-roller ${APP_ROOT}
++
++WORKDIR ${APP_ROOT}
+ COPY target/dice-roller-service-0.0.1-SNAPSHOT.jar app.jar
+ 
+ EXPOSE 8080/tcp
+ 
++USER dice-roller
+ ENTRYPOINT ["java", "-Xms512m", "-Xmx512m",  "-jar", "app.jar"]
+ CMD ["--spring.profiles.active=point-dice"]
+``` 
+
+Rebuild the service:
+
+```shell
+$ ./mvnw clean install
+$ docker image build -t nicktorwald/dice-roller-service:evol2 .
+$ docker container run --rm -it -p 8080:8080 nicktorwald/dice-roller-service:evol2
+```
+
+Don't forget to use external smart analyzers (in the same way you use the linters) such as `snyk` to discover whether
+your image has well-known vulnerabilities or not.
+
+```shell
+snyk test --docker nicktorwald/dice-roller-service:evol2 --file=Dockerfile
+
+<skip long list of issues>
+
+Organization:      nicktorwald
+Package manager:   deb
+Target file:       Dockerfile
+Project name:      docker-image|nicktorwald/dice-roller-service
+Docker image:      nicktorwald/dice-roller-service:evol2
+Base image:        openjdk:11-jre
+Licenses:          enabled
+
+Tested 145 dependencies for known issues, found 92 issues.
+
+Base Image      Vulnerabilities  Severity
+openjdk:11-jre  92               6 high, 13 medium, 73 low
+
+Recommendations for base image upgrade:
+
+Alternative image types
+Base Image                     Vulnerabilities  Severity
+openjdk:15-ea-16               0                0 high, 0 medium, 0 low
+openjdk:15-ea-18-oracle        0                0 high, 0 medium, 0 low
+openjdk:15-ea-14-oraclelinux7  0                0 high, 0 medium, 0 low
+openjdk:15-ea-15               0                0 high, 0 medium, 0 low
+```
+
+Thus, `snyk` says the target image has no security issues there, but the base image `openjdk:11-jre` has a lot. Maybe, it is
+time to bump up the java version to 15?
+
+### Props:
+
+- no more evident security issues.
+
+### Cons:
+
+- still depends on external service build. 
+
+### Advice:
+
+- learn more about potential vulnerabilities and try to mitigate them;
+- use analyzers to check your images as well as the images you base on (i.e. `snyk`).
