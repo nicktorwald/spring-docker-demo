@@ -3,5 +3,15 @@ spring:
     active: >
       point-dice
 
+management:
+  endpoints:
+    enabled-by-default: false
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      enabled: true
+
 dice:
   sidesNumber: 6

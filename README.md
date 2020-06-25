@@ -199,3 +199,71 @@ time to bump up the java version to 15?
 
 - learn more about potential vulnerabilities and try to mitigate them;
 - use analyzers to check your images as well as the images you base on (i.e. `snyk`).
+
+## Evolution \#3
+
+To be a more production-ready it is worth adding extra tools and health check mechanism:
+
+```diff
+--- Dockerfile
++++ Dockerfile
+@@ -2,6 +2,9 @@
+ 
+ LABEL maintainer="nicktorwald"
+ 
++COPY distribution/boot-ready.sh /usr/local/bin/
++COPY distribution/launch.sh /usr/local/bin/
++
+ ENV APP_ROOT /opt/dice-roller-service
+ 
+ RUN groupadd --gid 999 --system dice-roller \
+@@ -14,6 +17,10 @@
+ 
+ EXPOSE 8080/tcp
+ 
++HEALTHCHECK CMD ["boot-ready.sh"]
++
++ENV JAVA_OPTS -Xms512m -Xmx512m
++
+ USER dice-roller
+-ENTRYPOINT ["java", "-Xms512m", "-Xmx512m",  "-jar", "app.jar"]
++ENTRYPOINT ["launch.sh"]
+ CMD ["--spring.profiles.active=point-dice"]
+```
+
+Rebuild the service and mount a custom configuration via the volume system:
+
+```shell
+$ ./mvnw clean install
+$ docker image build -t nicktorwald/dice-roller-service:evol3 .
+$ echo "spring.main.banner-mode: off" > application.yaml
+$ docker container run --rm -it -p 8080:8080 \ 
+    -v $(pwd)/application.yaml:/opt/dice-roller-service/config/application.yaml \
+    nicktorwald/dice-roller-service:evol3
+```
+
+Let's verify that the created container is *healty* and has a config *volume* mounted:
+
+```shell
+docker container ps --filter "label=maintainer=nicktorwald" --format "table {{.ID}}\t{{.Status}}\t{{.Mounts}}"
+
+CONTAINER ID        STATUS                   MOUNTS
+9447bfb41ee3        Up 3 minutes (healthy)   /Users/nicktor…,d3f54bf9c5efd8…
+```
+
+### Props:
+
+- contains a convenient utility belt;
+- more flexible service configuration via a custom entry point.
+
+### Cons:
+
+- still requires a pre-compiled service (a JAR file to be copied). 
+
+### Advice:
+
+- consider extracting the utility belt and common preparations to the platform base image that can be used to build
+  service images;
+- provide the built-in heath check;
+- provide at least one way for consumers to configure a container (environment variables, app properties, external
+  mounted configuration files etc.). 
