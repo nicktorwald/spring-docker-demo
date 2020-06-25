@@ -327,4 +327,77 @@ $ docker container run --rm -it -p 8080:8080 nicktorwald/dice-roller-service:evo
 
 ### Advice:
 
-- try to create autonomous images that are independent on external environments. 
+- try to create autonomous images that are independent on external environments.
+
+## Evolution \#5
+
+Let's split service building and deployment using Docker *multi-stage* approach: 
+
+```diff
+--- Dockerfile
++++ Dockerfile
+@@ -1,4 +1,16 @@
+-FROM openjdk:11-jdk
++FROM maven:3.6.3-openjdk-11 AS java-builder
++
++ENV MAVEN_OPTS -XX:+TieredCompilation -XX:TieredStopAtLevel=1
++
++WORKDIR /source
++COPY pom.xml .
++RUN mvn --threads 1C --errors --batch-mode dependency:resolve-plugins dependency:go-offline
++COPY src ./src
++RUN mvn --threads 1C --errors --batch-mode --offline package
++
++# ---
++
++FROM openjdk:11-jre
+ 
+ LABEL maintainer="nicktorwald"
+ 
+@@ -13,23 +25,7 @@
+     && chown --recursive dice-roller:dice-roller ${APP_ROOT}
+ 
+ WORKDIR ${APP_ROOT}
+-COPY . .
+-
+-ARG MAVEN_VERSION=3.6.3
+-ARG USER_HOME_DIR="/root"
+-ARG MAVEN_URL=https://apache.osuosl.org/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz
+-
+-RUN mkdir --parents /usr/share/maven \
+-    && curl --fail --silent --location --output /tmp/apache-maven.tar.gz ${MAVEN_URL} \
+-    && tar --get --gzip --file=/tmp/apache-maven.tar.gz --directory=/usr/share/maven --strip-components=1 \
+-    && rm --force /tmp/apache-maven.tar.gz \
+-    && ln --symbolic /usr/share/maven/bin/mvn /usr/bin/mvn
+-
+-ENV MAVEN_HOME /usr/share/maven
+-ENV MAVEN_CONFIG "$USER_HOME_DIR/.m2"
+-
+-RUN mvn --errors --batch-mode package \
+-    && cp target/dice-roller-service-0.0.1-SNAPSHOT.jar ./app.jar
++COPY --from=java-builder /source/target/dice-roller-service-0.0.1-SNAPSHOT.jar ./app.jar
+ 
+ EXPOSE 8080/tcp
+```
+
+Finally, to build all the stages, run:
+
+```shell
+$ docker image build -t nicktorwald/dice-roller-service:evol5 .
+$ docker container run --rm -it -p 8080:8080 nicktorwald/dice-roller-service:evol5
+```
+
+### Props:
+
+- an almost flawless image;
+- segregates compile and runtime stages;
+- uses advanced dependency resolution.
+
+### Cons:
+
+- a builder image has a huge size.
+
+### Advice:
+
+- divide a build process by more simple chain of stages;
+- reuse project artifacts (dependencies, plugins, reports and so on) as often as possible.
