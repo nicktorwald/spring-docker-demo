@@ -267,3 +267,64 @@ CONTAINER ID        STATUS                   MOUNTS
 - provide the built-in heath check;
 - provide at least one way for consumers to configure a container (environment variables, app properties, external
   mounted configuration files etc.). 
+
+## Evolution \#4
+
+The only thing remains is to provide build reproducibility and make consistent images.
+
+```diff
+--- Dockerfile
++++ Dockerfile
+@@ -1,4 +1,4 @@
+-FROM openjdk:11-jre
++FROM openjdk:11-jdk
+ 
+ LABEL maintainer="nicktorwald"
+ 
+@@ -13,7 +13,23 @@
+     && chown --recursive dice-roller:dice-roller ${APP_ROOT}
+ 
+ WORKDIR ${APP_ROOT}
+-COPY target/dice-roller-service-0.0.1-SNAPSHOT.jar app.jar
++COPY . .
++
++ARG MAVEN_VERSION=3.6.3
++ARG USER_HOME_DIR="/root"
++ARG MAVEN_URL=https://apache.osuosl.org/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz
++
++RUN mkdir --parents /usr/share/maven \
++    && curl --fail --silent --location --output /tmp/apache-maven.tar.gz ${MAVEN_URL} \
++    && tar --get --gzip --file=/tmp/apache-maven.tar.gz --directory=/usr/share/maven --strip-components=1 \
++    && rm --force /tmp/apache-maven.tar.gz \
++    && ln --symbolic /usr/share/maven/bin/mvn /usr/bin/mvn
++
++ENV MAVEN_HOME /usr/share/maven
++ENV MAVEN_CONFIG "$USER_HOME_DIR/.m2"
++
++RUN mvn --errors --batch-mode package \
++    && cp target/dice-roller-service-0.0.1-SNAPSHOT.jar ./app.jar
+ 
+ EXPOSE 8080/tcp
+```
+
+Make an image but without project building at this time:  
+
+```shell
+$ docker image build -t nicktorwald/dice-roller-service:evol4 .
+$ docker container run --rm -it -p 8080:8080 nicktorwald/dice-roller-service:evol4
+```
+
+### Props:
+
+- free of any preconditions such as an already compiled service;
+- reproducible and built in a consistent environment.
+
+### Cons:
+
+- sluggish;
+- polluted by the compile-time dependencies and has a quite large size;
+- has a wrong instruction order that breaks a build cache.
+
+### Advice:
+
+- try to create autonomous images that are independent on external environments. 
