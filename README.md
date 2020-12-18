@@ -506,3 +506,38 @@ For more detailed exploration it can be used a 3rd party tool like [wagoodman/di
 ### Advice:
 
 - divide an app to the several independent layers (say, libraries and app-specific artifacts)
+
+## Evolution \#7
+
+Tired of writing Dockerfiles? Meet [buildpacks](https://buildpacks.io/) which solves all app packaging issues for next
+deployment procsss. There is also [paketo](https://paketo.io/docs/buildpacks/language-family-buildpacks/java/) that
+kindly provides a set of useful so-called *buildpacks* including support for Maven and Spring Boot apps as well.
+
+Let's run the Java paketo buildpack that includes several sub-buildpacks such as Maven and SpringBoot
+buildpacks to build and run the app respectively. The maven plugin provides an integration with *paketo* via 
+`spring-boot:build-image` goal.
+
+```shell
+$ mvn spring-boot:build-image -Dspring-boot.build-image.imageName=nicktorwald/dice-roller-service:evol7
+$ docker container run --rm -it -p 8080:8080 nicktorwald/dice-roller-service:evol7
+```
+In fact, the sequence of the buildpacks used by composite the Java buildpack already takes into account the
+recommendations mentioned above in the previous evolution stages. See paketo docs to know what is actually included
+from buildpacks. For instance, for [SpringBoot buildpack](https://github.com/paketo-buildpacks/spring-boot) JAR layering
+is applied when `Spring-Boot-Layers-Index` exists in `<APP_ROOT>/META-INF/MANIFEST.MF`.
+For more detailed information about Spring Boot plugin support, take a look at page
+[Packaging OCI Images](https://docs.spring.io/spring-boot/docs/2.4.1/maven-plugin/reference/htmlsingle/#build-image)
+
+### Props:
+
+- no-cost approach to make target images for the most standard cases 
+- a high-level way to provide deployable artefacts
+- a lot of provided features to compose a target runtime images
+
+### Cons:
+
+- may require extra painful efforts, if there are no buildpacks that support your fits
+
+### Advice:
+
+- try to use production-ready 3rd party tools which do the things you need  
