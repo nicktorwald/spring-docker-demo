@@ -39,7 +39,7 @@ $ docker image build -t nicktorwald/dice-roller-service:evol0 .
 $ docker container run --rm -it -p 8080:8080 nicktorwald/dice-roller-service:evol0
 ```
 
-### Props:
+### Pros:
 
 - it works;
 - as simple as it can be;
@@ -100,7 +100,7 @@ $ docker image build -t nicktorwald/dice-roller-service:evol1 .
 $ docker container run --rm -it -p 8080:8080 nicktorwald/dice-roller-service:evol1
 ```
 
-### Props:
+### Pros:
 
 - no more evident linter issues;
 - a bit more flexible.
@@ -187,7 +187,7 @@ openjdk:15-ea-15               0                0 high, 0 medium, 0 low
 Thus, `snyk` says the target image has no security issues there, but the base image `openjdk:11-jre` has a lot. Maybe, it is
 time to bump up the java version to 15?
 
-### Props:
+### Pros:
 
 - no more evident security issues.
 
@@ -251,7 +251,7 @@ CONTAINER ID        STATUS                   MOUNTS
 9447bfb41ee3        Up 3 minutes (healthy)   /Users/nicktor…,d3f54bf9c5efd8…
 ```
 
-### Props:
+### Pros:
 
 - contains a convenient utility belt;
 - more flexible service configuration via a custom entry point.
@@ -314,7 +314,7 @@ $ docker image build -t nicktorwald/dice-roller-service:evol4 .
 $ docker container run --rm -it -p 8080:8080 nicktorwald/dice-roller-service:evol4
 ```
 
-### Props:
+### Pros:
 
 - free of any preconditions such as an already compiled service;
 - reproducible and built in a consistent environment.
@@ -387,7 +387,7 @@ $ docker image build -t nicktorwald/dice-roller-service:evol5 .
 $ docker container run --rm -it -p 8080:8080 nicktorwald/dice-roller-service:evol5
 ```
 
-### Props:
+### Pros:
 
 - an almost flawless image;
 - segregates compile and runtime stages;
@@ -493,7 +493,7 @@ cache.
 
 For more detailed exploration it can be used a 3rd party tool like [wagoodman/dive](https://github.com/wagoodman/dive).
 
-### Props:
+### Pros:
 
 - more fine-grained (cache tolerant) app packaging
 - out of the box support (at least for Spring Boot)   
@@ -528,7 +528,7 @@ is applied when `Spring-Boot-Layers-Index` exists in `<APP_ROOT>/META-INF/MANIFE
 For more detailed information about Spring Boot plugin support, take a look at page
 [Packaging OCI Images](https://docs.spring.io/spring-boot/docs/2.4.1/maven-plugin/reference/htmlsingle/#build-image)
 
-### Props:
+### Pros:
 
 - no-cost approach to make target images for the most standard cases 
 - a high-level way to provide deployable artefacts
