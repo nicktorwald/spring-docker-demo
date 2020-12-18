@@ -401,3 +401,108 @@ $ docker container run --rm -it -p 8080:8080 nicktorwald/dice-roller-service:evo
 
 - divide a build process by more simple chain of stages;
 - reuse project artifacts (dependencies, plugins, reports and so on) as often as possible.
+
+## Evolution \#6
+
+A typical java app is usually not homogeneous and consists of multiple parts. In terms of changeability it can be
+split into the rarely modifiable *dependency layer* and frequently editable *application layer*. In case of Spring Boot,
+it's possible to leverage layering support for the fat-jar produced by the build process. See more on
+[Layering Docker Images](https://docs.spring.io/spring-boot/docs/2.4.1/reference/htmlsingle/#layering-docker-images) 
+
+```diff
+--- Dockerfile
++++ Dockerfile
+@@ -7,6 +7,10 @@
+ RUN mvn --threads 1C --errors --batch-mode dependency:resolve-plugins dependency:go-offline
+ COPY src ./src
+ RUN mvn --threads 1C --errors --batch-mode --offline package
++RUN mkdir target/_output \
++    && cd target/_output \
++    && mv ../*.jar ./app.jar \
++    && java -Djarmode=layertools -jar app.jar extract
+ 
+ # ---
+ 
+@@ -25,12 +29,16 @@
+     && chown --recursive dice-roller:dice-roller ${APP_ROOT}
+ 
+ WORKDIR ${APP_ROOT}
+-COPY --from=java-builder /source/target/dice-roller-service-0.0.1-SNAPSHOT.jar ./app.jar
++COPY --from=java-builder /source/target/_output/dependencies/ ./
++COPY --from=java-builder /source/target/_output/spring-boot-loader/ ./
++COPY --from=java-builder /source/target/_output/snapshot-dependencies/ ./
++COPY --from=java-builder /source/target/_output/application/ ./
+ 
+ EXPOSE 8080/tcp
+ 
+ HEALTHCHECK CMD ["boot-ready.sh"]
+ 
++ENV EXECUTABLE org.springframework.boot.loader.JarLauncher
+ ENV JAVA_OPTS -Xms512m -Xmx512m
+ 
+ USER dice-roller
+```
+
+Let's build a layer-based image:
+
+```shell
+$ docker image build -t nicktorwald/dice-roller-service:evol6 .
+$ docker container run --rm -it -p 8080:8080 nicktorwald/dice-roller-service:evol6
+```
+
+The created image can be explored using tool like `docker history`:
+
+```shell
+$ docker history nicktorwald/dice-roller-service:evol6 --format "table {{.ID}}\t{{.CreatedBy}}\t{{.Size}}"
+
+IMAGE          CREATED BY                                      SIZE
+d3e470b55981   /bin/sh -c #(nop)  CMD ["--spring.profiles.a…   0B
+36325581ad67   /bin/sh -c #(nop)  ENTRYPOINT ["launch.sh"]     0B
+92f8d1330cfd   /bin/sh -c #(nop)  USER dice-roller             0B
+57867a9245b2   /bin/sh -c #(nop)  ENV JAVA_OPTS=-Xms512m -X…   0B
+1c14725ad091   /bin/sh -c #(nop)  ENV EXECUTABLE=org.spring…   0B
+6488a698ba13   /bin/sh -c #(nop)  HEALTHCHECK &{["CMD" "boo…   0B
+eb9180154907   /bin/sh -c #(nop)  EXPOSE 8080/tcp              0B
+bb95e6237958   /bin/sh -c #(nop) COPY dir:049e4d5a43f0f8482…   23.6kB
+1d3347aef564   /bin/sh -c #(nop) COPY dir:dd3f9ddaa6fc1be20…   0B
+b70fbfbb487a   /bin/sh -c #(nop) COPY dir:d503156ce92a53385…   241kB
+627d9899d1a4   /bin/sh -c #(nop) COPY dir:9ffe512c59315d03b…   22.7MB
+31bbc1467ba5   /bin/sh -c #(nop) WORKDIR /opt/dice-roller-s…   0B
+5a3f0b5d7ee4   /bin/sh -c groupadd --gid 999 --system dice-…   329kB
+122979c2db6b   /bin/sh -c #(nop)  ENV APP_ROOT=/opt/dice-ro…   0B
+ef9d7f80fb0c   /bin/sh -c #(nop) COPY file:e8f5a36f2bdfc2db…   58B
+cd1688154db0   /bin/sh -c #(nop) COPY file:3ba0f15d1549dd9c…   155B
+fec2c5d461e0   /bin/sh -c #(nop)  LABEL maintainer=nicktorw…   0B
+94321aa03ce0   /bin/sh -c set -eux;   arch="$(dpkg --print-…   126MB
+<missing>      /bin/sh -c #(nop)  ENV JAVA_VERSION=11.0.9.1    0B
+<missing>      /bin/sh -c { echo '#/bin/sh'; echo 'echo "$J…   27B
+<missing>      /bin/sh -c #(nop)  ENV PATH=/usr/local/openj…   0B
+<missing>      /bin/sh -c #(nop)  ENV JAVA_HOME=/usr/local/…   0B
+<missing>      /bin/sh -c #(nop)  ENV LANG=C.UTF-8             0B
+<missing>      /bin/sh -c set -eux;  apt-get update;  apt-g…   11.7MB
+<missing>      /bin/sh -c set -ex;  if ! command -v gpg > /…   17.5MB
+<missing>      /bin/sh -c set -eux;  apt-get update;  apt-g…   16.5MB
+<missing>      /bin/sh -c #(nop)  CMD ["bash"]                 0B
+<missing>      /bin/sh -c #(nop) ADD file:6014cd9d7466825f8…   114MB
+```
+
+`627d9899d1a4`, `b70fbfbb487a`, `1d3347aef564`, and `bb95e6237958` layers correspond to `dependencies`,
+`spring-boot-loader`, `snapshot-dependencies`, and `application` directories in this order they were applied. Thus, the
+most heavy-weight and least changeable layers is laid before other layers that positively impacts the Docker image
+cache.  
+
+For more detailed exploration it can be used a 3rd party tool like [wagoodman/dive](https://github.com/wagoodman/dive).
+
+### Props:
+
+- more fine-grained (cache tolerant) app packaging
+- out of the box support (at least for Spring Boot)   
+
+### Cons:
+
+- may require an additional layer markup
+- not all frameworks/plugins can support layering 
+
+### Advice:
+
+- divide an app to the several independent layers (say, libraries and app-specific artifacts)

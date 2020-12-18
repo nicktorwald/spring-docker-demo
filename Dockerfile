@@ -7,6 +7,10 @@ COPY pom.xml .
 RUN mvn --threads 1C --errors --batch-mode dependency:resolve-plugins dependency:go-offline
 COPY src ./src
 RUN mvn --threads 1C --errors --batch-mode --offline package
+RUN mkdir target/_output \
+    && cd target/_output \
+    && mv ../*.jar ./app.jar \
+    && java -Djarmode=layertools -jar app.jar extract
 
 # ---
 
@@ -25,12 +29,16 @@ RUN groupadd --gid 999 --system dice-roller \
     && chown --recursive dice-roller:dice-roller ${APP_ROOT}
 
 WORKDIR ${APP_ROOT}
-COPY --from=java-builder /source/target/dice-roller-service-0.0.1-SNAPSHOT.jar ./app.jar
+COPY --from=java-builder /source/target/_output/dependencies/ ./
+COPY --from=java-builder /source/target/_output/spring-boot-loader/ ./
+COPY --from=java-builder /source/target/_output/snapshot-dependencies/ ./
+COPY --from=java-builder /source/target/_output/application/ ./
 
 EXPOSE 8080/tcp
 
 HEALTHCHECK CMD ["boot-ready.sh"]
 
+ENV EXECUTABLE org.springframework.boot.loader.JarLauncher
 ENV JAVA_OPTS -Xms512m -Xmx512m
 
 USER dice-roller
